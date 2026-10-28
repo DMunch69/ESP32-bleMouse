@@ -4,15 +4,13 @@
 #include "I2Cdev.h"
 #include "BleMouse.h"
 
-// 
-
+// Defining pins for mouse buttons, the bluetooth mouse, gyroscopic vectors, mouse sensitivy, mouse movements and their smoothed counterparts.
 #define LEFT_BTN 5
 #define RIGHT_BTN 4
 
 MPU6050 mpu;
 BleMouse bleMouse;
 int16_t gx, gy, gz;
-float vx, vy;
 
 float sensitivity = 0.003;
 float dx {}, dy {};
@@ -20,11 +18,12 @@ float smoothed_dx {}, smoothed_dy {};
 
 
 void setup() {
-  //Set ledPin as digital output pin
+  //Start serial and I2C communication
   Serial.begin(115200);
   Wire.begin(21, 22);
   Wire.setClock(100000);
 
+  //Define mouse input pins using internal pullup resistor. Buttons must be connected to ground.
   pinMode(LEFT_BTN, INPUT_PULLUP);
   pinMode(RIGHT_BTN, INPUT_PULLUP);
   
@@ -33,6 +32,7 @@ void setup() {
   while (!Serial)
     delay(10);
   
+  //Test to see if MPU6050 connects
   Serial.println("MPU6050 test!");
   mpu.initialize();
   Serial.println(F("Testing MPU6050 connection..."));
@@ -48,6 +48,7 @@ void setup() {
 
 void loop() {
 
+  //Test if mouse buttons are pressed, otherwise release them.
   bool leftPressed = (digitalRead(LEFT_BTN) == LOW);
   bool rightPressed = (digitalRead(RIGHT_BTN) == LOW);
   if (leftPressed){
@@ -65,36 +66,31 @@ void loop() {
   }
 
 
-  // Get sensor data
+  // Get gyroscopic data
   mpu.getRotation(&gx, &gy, &gz);
-  
-  Serial.print("g:\t");
-  Serial.print(gx); Serial.print("\t");
-  Serial.print(gy); Serial.print("\t");
-  Serial.println(gz);
 
+  //Choose which gyroscopic vectors to use according to MPU-6050 orientation on board.
   dx = -gz * sensitivity;
   dy = gx * sensitivity;
 
-  //Simple Highpass filter
+  //Simple Highpass filter and smoothening of output to minimize jitter.
   if (abs(dx) < 0.5) dx = 0;
   if (abs(dy) < 0.5) dy = 0;
 
   smoothed_dx = smoothed_dx * 0.7 + dx *0.3;
   smoothed_dy = smoothed_dy * 0.7 + dy *0.3;
 
+  //Constrains movement of mouse to remove big cursor jumps.
   int move_x = constrain((int)smoothed_dx, -20, 20);
   int move_y = constrain((int)smoothed_dy, -20, 20);
 
   bleMouse.move(move_x, move_y);
 
-
-  // Old version
-  // vx = (gz+300-120)/200;
-  // vy = -(gx-100+120)/200;
-
-  // bleMouse.move(-vx, -vy);
-
+  // Print raw gyroscopic data for debug purposes
+  Serial.print("g:\t");
+  Serial.print(gx); Serial.print("\t");
+  Serial.print(gy); Serial.print("\t");
+  Serial.println(gz);
   delay(10);
 }
  
